@@ -1,8 +1,8 @@
 {-# LANGUAGE MagicHash, UnboxedTuples, RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables, BangPatterns,StandaloneDeriving #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE GADTs, TypeFamilies #-}
-
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Control.Monad.STE
 (
@@ -20,6 +20,7 @@ import GHC.Prim (State#, raiseIO#, catch#)
 import GHC.Prim (State#, raiseIO#, catch#, realWorld#)
 #endif
 
+import qualified Control.Monad.Catch as CMC
 import Control.Exception as Except
 import Control.Monad (ap)
 import Control.Monad.Primitive
@@ -72,6 +73,10 @@ instance PrimBase (STE e s) where
                           y -> y
   {-# INLINE internal #-}
 
+-- this isn't terribly useful, but it is the only valid instance STE can have for
+-- MonadThrow
+instance (Except.SomeException ~ err) =>  CMC.MonadThrow (STE err s) where
+  throwM x = throwSTE  $ toException x
 
 
 {-# INLINE runSTE #-} -- this may not be needed and may make code closer when its a small STE computation (though we're using it for small stuff )
@@ -152,8 +157,7 @@ runSTERep st_rep = case st_rep realWorld# of
 
 data Box a = Box {-# NOUNPACK #-} a
 
-data STException where
-   STException :: (Box ()) -> STException
+data STException = STException  (Box ())
   deriving Typeable
 instance Show (STException ) where
   show (STException _) = "STException  OPAQUE BLOB, this should never happen, report a bug "
