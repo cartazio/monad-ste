@@ -14,7 +14,7 @@ module Control.Monad.STE
 
   where
 
-#if MIN_VERSION_GLASGOW_HASKELL(8,0,0,0)
+#if MIN_VERSION_ghc_prim(0,5,0)
 import GHC.Prim (State#, raiseIO#, catch#)
 #else
 import GHC.Prim (State#, raiseIO#, catch#, realWorld#)
@@ -27,7 +27,7 @@ import Data.Typeable
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.IO(IO(..))
 
-#if MIN_VERSION_GLASGOW_HASKELL(8,0,0,0)
+#if MIN_VERSION_ghc_prim(0,5,0)
 import GHC.Magic(runRW#)
 #endif
 
@@ -133,7 +133,7 @@ unsafeIOToSTE (IO io) = STE (unsafeCoerce io)
 
 
 --- this results in WAY better perf when available
-#if MIN_VERSION_GLASGOW_HASKELL(8,0,0,0)
+#if MIN_VERSION_ghc_prim(0,5,0)
 runBasicSTE :: (forall s. STE e s a) -> a
 runBasicSTE (STE st_rep) = case runRW# st_rep of (# _, a #) -> a
 {-# INLINE runBasicSTE #-}
