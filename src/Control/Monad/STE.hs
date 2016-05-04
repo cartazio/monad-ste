@@ -28,6 +28,10 @@ import Data.Typeable
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.IO(IO(..))
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
+
 #if MIN_VERSION_ghc_prim(0,5,0)
 import GHC.Magic(runRW#)
 #endif
@@ -154,8 +158,12 @@ runSTERep st_rep = case st_rep realWorld# of
 #endif
 
 
-
+#if MIN_VERSION_base(4,8,0)
 data Box a = Box {-# NOUNPACK #-} a
+#else
+data Box a = Box  a
+#endif
+
 
 data STException = STException  (Box ())
   deriving Typeable
