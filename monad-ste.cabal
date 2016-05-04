@@ -55,7 +55,8 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Control.Monad.STE
+  exposed-modules:      Control.Monad.STE
+                        Control.Monad.STE.Internal
 
   ghc-options: -O2
   -- Modules included in this library but not exported.
@@ -65,7 +66,7 @@ library
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:      base >=4.3 && <4.10
+  build-depends:      base >=4.3 && < 5
                       ,primitive >= 0.6 && < 0.7
                       ,exceptions >= 0.8 && < 0.9
                       ,ghc-prim
