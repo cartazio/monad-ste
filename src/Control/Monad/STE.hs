@@ -75,7 +75,7 @@ instance PrimMonad (STE e s) where
   {-# INLINE primitive #-}
 instance PrimBase (STE e s) where
   internal (STE p) = \ s# -> case p s# of
-                          y -> y
+                          (# a , b #) -> (# a , b #)
   {-# INLINE internal #-}
 
 -- this isn't terribly useful, but it is the only valid instance STE can have for
