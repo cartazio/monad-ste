@@ -16,7 +16,8 @@ version:             0.1.0.0
 synopsis:            ST monad with efficient explicit errors
 
 -- A longer description of the package.
--- description:
+description: STE is a sibling to the ST monad that provides more efficient
+  abortive errors than a standard EitherT or ExceptT monad stack.
 
 -- URL for the project homepage or repository.
 homepage:            http://github.com/cartazio/monad-ste
@@ -48,10 +49,16 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md
                     .travis.yml
                     .gitignore
+                    Hlint.hs
+                    readme.md
+                    cabal.project
 
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+source-repository head
+  type:     git
+  location: https://github.com/cartazio/monad-ste
 
 library
   -- Modules exported by the library.

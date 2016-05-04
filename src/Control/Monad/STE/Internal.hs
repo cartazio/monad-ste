@@ -1,5 +1,5 @@
 {-# LANGUAGE MagicHash, UnboxedTuples, RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables, BangPatterns,StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
