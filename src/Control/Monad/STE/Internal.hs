@@ -17,6 +17,7 @@ module Control.Monad.STE.Internal
   ----
   ,unsafeInterleaveSTE
   ,liftSTE
+  ,fixSTE
   ,runBasicSTE
   ,RealWorld
   ,unsafeIOToSTE
@@ -128,7 +129,10 @@ instance (Except.SomeException ~ err) =>  CMC.MonadThrow (STE err s) where
 
 
 {-# INLINE runSTE #-} -- this may not be needed and may make code closer when its a small STE computation (though we're using it for small stuff )
--- | 'runSTE' is the workhorse of the STE monad.
+-- | 'runSTE' is the workhorse of the STE monad. Runs an STE computation, and
+-- also does the toplevel handling of the abortive throwSTE operator.
+-- The naive way to handle errors is to simply write @'handleSTE' 'id' md@.
+-- 'runSTE' does not and cannot (by design) handle pure or async exceptions.
 runSTE ::  (forall s. STE e s a) -> (Either e a  -> b) -> b
 runSTE = \ st  f -> f  $
             runBasicSTE (privateCatchSTE st)
@@ -141,6 +145,8 @@ handleSTE f st = runSTE st f
 -- |  'throwSTE' is the 'STE' sibling of 'throwIO', and its argument
 -- must match the @e@ parameter in @'STE' e s a@. There is also no Exception e
 -- constraint.
+-- `throwSTE` should be thought of as an "abort" operation which is guaranteed to be
+-- caught/handled by runSTE.
 throwSTE :: forall e s a .  e -> STE e s a
 throwSTE err = unsafeIOToSTE  $
     IO (raiseIO# (toException $ STException $ ( Box $ unsafeCoerce err)))
