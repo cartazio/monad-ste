@@ -11,8 +11,11 @@ module Control.Monad.STE.Internal
   ,unSTE
   ,STERep
   ,STEret(..)
+  ,runSTE2
+  ,runSTEither
   ,runSTE
   ,throwSTE
+  ,handleSTE2
   ,handleSTE
   ----
   ,unsafeInterleaveSTE
@@ -26,11 +29,7 @@ module Control.Monad.STE.Internal
 
   where
 
-#if MIN_VERSION_ghc_prim(0,5,0)
 import GHC.Prim (State#, raiseIO#, catch#)
-#else
-import GHC.Prim (State#, raiseIO#, catch#, realWorld#)
-#endif
 
 import qualified Control.Monad.Catch as CMC
 import Control.Exception as Except
@@ -47,6 +46,8 @@ import Control.Applicative
 
 #if MIN_VERSION_ghc_prim(0,5,0)
 import GHC.Magic(runRW#)
+#else
+import GHC.Prim (realWorld#, Any)
 #endif
 
 
@@ -129,13 +130,19 @@ instance (Except.SomeException ~ err) =>  CMC.MonadThrow (STE err s) where
 
 
 {-# INLINE runSTE #-} -- this may not be needed and may make code closer when its a small STE computation (though we're using it for small stuff )
--- | 'runSTE' is the workhorse of the STE monad. Runs an STE computation, and
--- also does the toplevel handling of the abortive throwSTE operator.
--- The naive way to handle errors is to simply write @'handleSTE' 'id' md@.
--- 'runSTE' does not and cannot (by design) handle pure or async exceptions.
+-- | 'runSTE' is one way of interpreting the STE monad. Runs an STE
+-- computation, and also does the toplevel handling of the abortive throwSTE
+-- operator. 'runSTE' does not and cannot (by design) handle pure or async
+-- exceptions.
 runSTE ::  (forall s. STE e s a) -> (Either e a  -> b) -> b
-runSTE = \ st  f -> f  $
-            runBasicSTE (privateCatchSTE st)
+runSTE st f = runSTE2 st (f . Left) (f . Right)
+
+-- | 'runSTEither' is one way of interpreting the STE monad. Runs an STE
+-- computation, and also does the toplevel handling of the abortive throwSTE
+-- operator. 'runSTEither' does not and cannot (by design) handle pure or async
+-- exceptions.
+runSTEither :: (forall s. STE e s a) -> Either e a
+runSTEither st = runSTE2 st Left Right
 
 {-# INLINE handleSTE #-}
 -- | 'handleSTE' is a flipped convenience function version of 'runSTE'
@@ -148,23 +155,25 @@ handleSTE f st = runSTE st f
 -- `throwSTE` should be thought of as an "abort" operation which is guaranteed to be
 -- caught/handled by runSTE.
 throwSTE :: forall e s a .  e -> STE e s a
-throwSTE err = unsafeIOToSTE  $
-    IO (raiseIO# (toException $ STException $ ( Box $ unsafeCoerce err)))
+throwSTE err = unsafeIOToSTE $
+    IO (raiseIO# (toException $ STException (unsafeCoerce err)))
 
--- | privateCatchSTE is NOT exported
--- we copy the machinery from
--- catchException so that pure errors aren't mishandled by
--- the catchSTE machinery when handling STE errors
-privateCatchSTE:: forall e s b . STE e s b  -> STE e s (Either e b)
-privateCatchSTE = \ steAct  ->
-      unsafeIOToSTE $
-        IO  (catch# (unsafeCoerce $ unSTE $ fmap Right steAct) handler')
+-- | 'runSTE2' is the workhorse of the STE monad. Runs an STE computation, and
+-- also does the toplevel handling of the abortive throwSTE operator.
+-- 'runSTE2' does not and cannot (by design) handle pure or async exceptions.
+runSTE2 :: forall e a b. (forall s. STE e s a) -> (e -> b) -> (a -> b) -> b
+runSTE2 st f g = runBasicSTE $ unsafeIOToSTE $
+    IO (catch# (unsafeCoerce (fmap g st)) handler')
   where
-    --- need to handle pure exceptions too!
-    handler' :: SomeException -> STERep RealWorld (Either e b)
-    handler' e = case (fromException e) of
-        Just (STException (Box val)) -> \ s -> (# s , Left $ unsafeCoerce val #)
+    handler' :: SomeException -> STERep RealWorld b
+    handler' e = case fromException e of
+        Just (STException val) -> \s -> (# s, f (unsafeCoerce val) #)
         Nothing -> raiseIO# e
+
+{-# INLINE handleSTE2 #-}
+-- | 'handleSTE2' is a flipped convenience function version of 'runSTE2'
+handleSTE2 :: (e -> b) -> (a -> b) -> (forall s. STE e s a) -> b
+handleSTE2 f g st = runSTE2 st f g
 
 {-
 catchAny :: IO a -> (forall e . Exception e => e -> IO a) -> IO a
@@ -186,7 +195,7 @@ for information on tradeoffs in strictness
 
 
 unsafeIOToSTE        :: IO a -> STE e s a
-unsafeIOToSTE (IO io) = STE $ \ s -> (unsafeCoerce io) s
+unsafeIOToSTE (IO io) = STE $ \ s -> unsafeCoerce io s
 
 unsafeSTEToIO :: STE e s a -> IO a
 unsafeSTEToIO (STE m) = IO (unsafeCoerce m)
@@ -208,16 +217,12 @@ runSTERep st_rep = case st_rep realWorld# of
 {-# NOINLINE runSTERep #-}
 #endif
 
-
-#if MIN_VERSION_base(4,8,0)
-data Box a = Box {-# NOUNPACK #-} a
-#else
-data Box a = Box  a
+#if MIN_VERSION_ghc_prim(0,5,0)
+type family Any where {}
 #endif
 
 -- | STException
-data STException = STException  (Box ())
-  deriving Typeable
-instance Show (STException ) where
-  show (STException _) = "STException(..)! did you use the Unsafe/internal STE interface?"
-instance Exception (STException)
+newtype STException = STException Any deriving Typeable
+instance Show STException where
+  show _ = "STException(..)! did you use the Unsafe/internal STE interface?"
+instance Exception STException
