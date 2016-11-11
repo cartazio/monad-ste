@@ -27,9 +27,9 @@ module Control.Monad.STE.Internal
   where
 
 #if MIN_VERSION_ghc_prim(0,5,0)
-import GHC.Prim (State#, raiseIO#, catch#)
+import GHC.Prim (State#, raiseIO#, catch#, noDuplicate#)
 #else
-import GHC.Prim (State#, raiseIO#, catch#, realWorld#)
+import GHC.Prim (State#, raiseIO#, catch#, realWorld#, noDuplicate#)
 #endif
 
 import qualified Control.Monad.Catch as CMC
@@ -40,6 +40,7 @@ import Control.Monad.Primitive
 import Data.Typeable
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.IO(IO(..))
+import GHC.IO.Unsafe (noDuplicate)
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -64,11 +65,27 @@ data STEret s a = STEret (State# s) a
 liftSTE :: STE e s a -> State# s -> STEret s a
 liftSTE (STE m) = \s -> case m s of (# s', r #) -> STEret s' r
 
-{-# NOINLINE unsafeInterleaveSTE #-}
+{-# INLINE unsafeInterleaveSTE #-}
 unsafeInterleaveSTE :: STE e s a -> STE e s a
 unsafeInterleaveSTE (STE m) = STE ( \ s ->
     let
         r = case m s of (# _, res #) -> res
+    in
+    (# s, r #)
+  )
+
+{-# INLINE unsafeInterleavePrimBase #-}
+unsafeInterleavePrimBase :: PrimBase m => m a -> m a
+unsafeInterleavePrimBase = \m ->
+    ((primitive $ unsafeCoerce {- screw realworld#, this isn't mtv -} $ noDuplicate#)
+       >> unsafeDupableInterleavePrimBase m )
+
+--- the
+{-# NOINLINE unsafeDupableInterleavePrimBase #-}
+unsafeDupableInterleavePrimBase :: PrimBase m => m a -> m a
+unsafeDupableInterleavePrimBase m  =   unsafePrimToPrim $ STE ( \ s ->
+    let
+        r = case (internal  m)  s of (# _, res #) -> res
     in
     (# s, r #)
   )
